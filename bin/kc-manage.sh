@@ -10,6 +10,8 @@
 #   remove-user <username>                  Remove a user from the realm
 #   add-client <client-id> <secret>         Add a client to the realm
 #   remove-client <client-id>               Remove a client from the realm
+#   add-role <role-name> [description]      Add a realm role
+#   remove-role <role-name>                 Remove a realm role
 #   list-users                              List all users in the realm
 #   list-clients                            List all clients in the realm
 #   backup                                  Backup current realm config
@@ -225,6 +227,76 @@ remove_client() {
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+# Add a realm role
+add_role() {
+    local role_name="$1"
+    local description="${2:-}"
+
+    [[ -z "$role_name" ]] && die "Usage: add-role <role-name> [description]"
+
+    info "Adding role: $role_name"
+
+    local config
+    config=$(get_realm_config)
+    [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
+
+    # Check if role already exists
+    if echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role_name\")" > /dev/null 2>&1; then
+        die "Role already exists: $role_name"
+    fi
+
+    # Create role JSON
+    local role_json
+    role_json=$(cat <<EOF
+{
+  "name": "$role_name",
+  "description": "$description"
+}
+EOF
+)
+
+    # Add role to config
+    local new_config
+    new_config=$(echo "$config" | jq --argjson role "$role_json" '.roles.realm += [$role]')
+
+    # Update secret
+    update_realm_config "$new_config"
+
+    info "Role added: $role_name"
+    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+}
+
+# Remove a realm role
+remove_role() {
+    local role_name="$1"
+
+    [[ -z "$role_name" ]] && die "Usage: remove-role <role-name>"
+
+    info "Removing role: $role_name"
+
+    local config
+    config=$(get_realm_config)
+    [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
+
+    # Check if role exists
+    if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role_name\")" > /dev/null 2>&1; then
+        die "Role not found: $role_name"
+    fi
+
+    # Remove role from config and strip it from any users' realmRoles
+    local new_config
+    new_config=$(echo "$config" | jq --arg r "$role_name" '
+        del(.roles.realm[] | select(.name == $r))
+        | .users |= map(if has("realmRoles") then .realmRoles |= map(select(. != $r)) else . end)
+    ')
+
+    # Update secret
+    update_realm_config "$new_config"
+
+    info "Role removed: $role_name (also stripped from users' realmRoles)"
+    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+}
+
 # List users in the realm
 list_users() {
     info "Users in realm:"
@@ -320,13 +392,15 @@ usage() {
     echo "  remove-user <username>                 Remove a user"
     echo "  add-client <client-id> <secret>        Add a client"
     echo "  remove-client <client-id>              Remove a client"
+    echo "  add-role <role-name> [description]     Add a realm role"
+    echo "  remove-role <role-name>                Remove a realm role"
     echo "  list-users                             List all users"
     echo "  list-clients                           List all clients"
     echo "  backup                                 Backup current realm config"
     echo "  restore <backup-file>                  Restore from backup"
     echo "  show                                   Show current realm config"
     echo ""
-    echo "Roles: catalog-admin, catalog-reader, catalog-writer"
+    echo "Roles: managed via add-role / remove-role (default: admin, user)"
     echo ""
     echo "Environment:"
     echo "  KEYCLOAK_NAMESPACE    - Kubernetes namespace (default: keycloak)"
@@ -335,6 +409,7 @@ usage() {
     echo "Examples:"
     echo "  $0 add-user alice secret123 catalog-writer"
     echo "  $0 add-client trino-client trino-secret"
+    echo "  $0 add-role catalog-reader 'Read access to catalog'"
     echo "  $0 list-users"
     echo "  $0 backup"
 }
@@ -355,6 +430,12 @@ main() {
             ;;
         remove-client)
             remove_client "$2"
+            ;;
+        add-role)
+            add_role "$2" "$3"
+            ;;
+        remove-role)
+            remove_role "$2"
             ;;
         list-users)
             list_users
