@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: keycloak
+
+resources:
+  - namespace.yaml
+  - keycloak-deployment.yaml
+  - keycloak-service.yaml
+  - keycloak-pvc.yaml
+
+secretGenerator:
+  - name: keycloak-admin
+    envs:
+      - secrets.env
+  - name: keycloak-realm
+    files:
+      - realm.json
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/component: identity
+      app.kubernetes.io/part-of: keycloak
+    includeSelectors: true

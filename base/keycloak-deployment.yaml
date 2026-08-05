@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/component: identity
+  strategy:
+    type: Recreate  # Embedded H2 doesn't support rolling updates
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/component: identity
+        app.kubernetes.io/part-of: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.7.1
+          args:
+            - start-dev
+            - --import-realm
+            - --http-port=8080
+            - --hostname-strict=false
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            # Keycloak 26 serves health and metrics on a dedicated management
+            # port (9000) rather than the main HTTP port.
+            - containerPort: 9000
+              name: management
+              protocol: TCP
+          env:
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin
+                  key: admin-user
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin
+                  key: admin-password
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HTTP_MANAGEMENT_PORT
+              value: "9000"
+          volumeMounts:
+            - name: realm-config
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+            - name: keycloak-data
+              mountPath: /opt/keycloak/data/h2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # Probes target the management port (9000), not the HTTP port.
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30  # Allow up to ~5 minutes for startup
+      volumes:
+        - name: realm-config
+          secret:
+            secretName: keycloak-realm
+        - name: keycloak-data
+          persistentVolumeClaim:
+            claimName: keycloak-data
