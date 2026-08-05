@@ -30,10 +30,9 @@
 PNAME=$(basename "$0")
 AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
 VERSION="v26.08.05"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 set -euo pipefail
-
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Load env file if provided ----------------------------------------------
 

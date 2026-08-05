@@ -1,0 +1,39 @@
+name: 'Kustomize Build Action'
+
+on:
+  push:
+    tags: [ 'v*' ]
+    branches: [ 'develop' ]
+  pull_request:
+    branches: [ 'master', 'main' ]
+
+env:
+  KEYCLOAK_REALM_NAME: app
+  KEYCLOAK_ADMIN_USER: admin
+  KEYCLOAK_ADMIN_PASSWORD: admin
+  APP_CLIENT_ID: app-client
+  APP_CLIENT_SECRET: app-client-secret
+  KEYCLOAK_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+  KEYCLOAK_DB_USERNAME: keycloak
+  KEYCLOAK_DB_PASSWORD: CHANGE_ME_IN_PRODUCTION
+  KEYCLOAK_DB_NAME: keycloak
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Keycloak
+        run: ./bin/kc-setup.sh
+
+      - name: Build postgres
+        uses: tcarland/kustomize-build-action@v2
+        with:
+          kustomize_dir: './postgres'
+
+      - name: Build keycloak
+        uses: tcarland/kustomize-build-action@v2
+        with:
+          kustomize_dir: './base'
