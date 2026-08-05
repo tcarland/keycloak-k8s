@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: postgres:17-alpine
           ports:
             - containerPort: 5432
               name: postgres
@@ -82,4 +82,4 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 5Gi
+            storage: 1Gi

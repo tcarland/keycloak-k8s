@@ -1,5 +1,5 @@
 {
-  "realm": "app",
+  "realm": "$KEYCLOAK_REALM_NAME",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,

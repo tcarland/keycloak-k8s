@@ -13,9 +13,10 @@
 #   ./kc-setup.sh env/env
 #
 #   # Generate production config from an env file
-#   ./kc-setup.sh env/env overlays/prod
+#   ./kc-setup.sh env/prod.env overlays/prod
 #
 # Environment variables (defaults shown):
+#   KEYCLOAK_REALM_NAME=app
 #   KEYCLOAK_ADMIN_USER=admin
 #   KEYCLOAK_ADMIN_PASSWORD=admin
 #   APP_CLIENT_ID=app-client
@@ -43,6 +44,7 @@ fi
 
 # --- Defaults (development) -------------------------------------------------
 
+: "${KEYCLOAK_REALM_NAME:=app}"
 : "${KEYCLOAK_ADMIN_USER:=admin}"
 : "${KEYCLOAK_ADMIN_PASSWORD:=admin}"
 : "${APP_CLIENT_ID:=app-client}"
@@ -75,24 +77,24 @@ fi
 
 # --- Generate files ---------------------------------------------------------
 
-echo "Generating Keycloak configuration in: $OUTPUT_DIR"
+echo "Generating Keycloak db configuration in: $OUTPUT_DIR"
 echo "  Admin user:   $KEYCLOAK_ADMIN_USER"
 echo "  Realm:        app"
 echo "  Client ID:    $APP_CLIENT_ID"
 echo "  DB URL:       $KEYCLOAK_DB_URL"
 
-envsubst < "$PROJECT_DIR/base/secrets.template.env" > "$OUTPUT_DIR/secrets.env"
+envsubst < "$PROJECT_DIR/base/secrets.template.env" > "base/secrets.env"
 echo "  -> secrets.env"
 
-envsubst < "$PROJECT_DIR/base/realm.template.json" > "$OUTPUT_DIR/realm.json"
+envsubst < "$PROJECT_DIR/base/realm.template.json" > "base/realm.json"
 echo "  -> realm.json"
 
 envsubst < "$PROJECT_DIR/base/db.template.env" > "$OUTPUT_DIR/db.env"
 echo "  -> db.env"
 
 # Generate postgres.env (always in postgres/, shared by all overlays)
-envsubst < "$PROJECT_DIR/postgres/postgres.template.env" > "$PROJECT_DIR/postgres/postgres.env"
-echo "  -> postgres/postgres.env"
+envsubst < "$PROJECT_DIR/postgres/base/postgres.template.env" > "$PROJECT_DIR/postgres/base/postgres.env"
+echo "  -> postgres/base/postgres.env"
 
 # --- Ensure namespace exists -------------------------------------------------
 # The namespace is created here rather than via kustomize manifests so that

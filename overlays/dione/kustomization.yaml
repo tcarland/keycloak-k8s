@@ -1,0 +1,79 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: keycloak
+
+resources:
+  - ../../base
+  #- keycloak-ingress.yaml
+
+patches:
+  # Switch from dev mode to production mode with PostgreSQL.
+  - target:
+      kind: Deployment
+      name: keycloak
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - start
+          - --import-realm
+          - --http-enabled=true
+          - --http-port=8080
+          - --hostname-strict=false
+          - --proxy-headers=forwarded
+          - --db=postgres
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KC_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-db-credentials
+              key: url
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KC_DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-db-credentials
+              key: username
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-db-credentials
+              key: password
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 1Gi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 2Gi
+      - op: replace
+        path: /spec/strategy/type
+        value: RollingUpdate
+
+  # Larger PVC for production.
+  - target:
+      kind: PersistentVolumeClaim
+      name: keycloak-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 10Gi
+
+secretGenerator:
+  - name: keycloak-db-credentials
+    envs:
+      - db.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+images:
+  - name: quay.io/keycloak/keycloak
+    newTag: "26.7.1"

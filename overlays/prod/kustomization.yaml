@@ -21,7 +21,6 @@ patches:
           - --http-enabled=true
           - --http-port=8080
           - --hostname-strict=false
-          - --hostname-strict-https=false
           - --proxy-headers=forwarded
           - --db=postgres
       - op: add
