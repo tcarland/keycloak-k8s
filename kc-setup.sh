@@ -23,6 +23,7 @@
 #   KEYCLOAK_DB_URL=jdbc:postgresql://postgres:5432/keycloak
 #   KEYCLOAK_DB_USERNAME=keycloak
 #   KEYCLOAK_DB_PASSWORD=CHANGE_ME_IN_PRODUCTION
+#   KEYCLOAK_DB_NAME=keycloak
 #
 # Requires: envsubst (gettext)
 
@@ -49,9 +50,10 @@ fi
 : "${KEYCLOAK_DB_URL:=jdbc:postgresql://postgres:5432/keycloak}"
 : "${KEYCLOAK_DB_USERNAME:=keycloak}"
 : "${KEYCLOAK_DB_PASSWORD:=CHANGE_ME_IN_PRODUCTION}"
+: "${KEYCLOAK_DB_NAME:=keycloak}"
 
 export KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD APP_CLIENT_ID APP_CLIENT_SECRET
-export KEYCLOAK_DB_URL KEYCLOAK_DB_USERNAME KEYCLOAK_DB_PASSWORD
+export KEYCLOAK_DB_URL KEYCLOAK_DB_USERNAME KEYCLOAK_DB_PASSWORD KEYCLOAK_DB_NAME
 
 # --- Output directory -------------------------------------------------------
 
@@ -87,6 +89,22 @@ echo "  -> realm.json"
 
 envsubst < "$PROJECT_DIR/base/db.template.env" > "$OUTPUT_DIR/db.env"
 echo "  -> db.env"
+
+# Generate postgres.env (always in postgres/, shared by all overlays)
+envsubst < "$PROJECT_DIR/postgres/postgres.template.env" > "$PROJECT_DIR/postgres/postgres.env"
+echo "  -> postgres/postgres.env"
+
+# --- Ensure namespace exists -------------------------------------------------
+# The namespace is created here rather than via kustomize manifests so that
+# PostgreSQL can be deployed before Keycloak into the same namespace.
+if command -v kubectl >/dev/null 2>&1; then
+  kubectl create namespace keycloak --dry-run=client -o yaml 2>/dev/null \
+    | kubectl apply -f - >/dev/null 2>&1 \
+    && echo "  -> namespace/keycloak ensured" \
+    || echo "  -> namespace/keycloak: skipped (kubectl error, create manually)"
+else
+  echo "  -> namespace/keycloak: skipped (kubectl not found, create manually)"
+fi
 
 echo ""
 echo "Done. Review the generated files before deploying."

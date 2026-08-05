@@ -10,7 +10,6 @@ keycloak-k8s/
 │   └── env.template                # Environment config template (copy to env/env)
 ├── base/
 │   ├── kustomization.yaml
-│   ├── namespace.yaml
 │   ├── keycloak-deployment.yaml
 │   ├── keycloak-service.yaml
 │   ├── keycloak-pvc.yaml
@@ -20,6 +19,12 @@ keycloak-k8s/
 │   ├── realm.json                   # Generated (gitignored)
 │   ├── secrets.env                  # Generated (gitignored)
 │   └── db.env                       # Generated (gitignored)
+├── postgres/                       # PostgreSQL deployment (applied before keycloak)
+│   ├── kustomization.yaml
+│   ├── statefulset.yaml
+│   ├── service.yaml
+│   ├── postgres.template.env       # Template for postgres credentials
+│   └── postgres.env                # Generated (gitignored)
 ├── overlays/
 │   ├── dev/                         # Development (embedded H2, minimal resources)
 │   │   └── kustomization.yaml
@@ -29,7 +34,7 @@ keycloak-k8s/
 │       ├── realm.json               # Generated (gitignored)
 │       ├── secrets.env              # Generated (gitignored)
 │       └── db.env                   # Generated (gitignored)
-├── kc-setup.sh                     # Generate secrets & realm config from templates
+├── kc-setup.sh                     # Generate secrets, realm config, ensure namespace
 └── README.md
 ```
 
@@ -104,6 +109,7 @@ APP_CLIENT_SECRET=$(openssl rand -base64 32)
 KEYCLOAK_DB_URL=jdbc:postgresql://postgres:5432/keycloak
 KEYCLOAK_DB_USERNAME=keycloak
 KEYCLOAK_DB_PASSWORD=$(openssl rand -base64 32)
+KEYCLOAK_DB_NAME=keycloak
 ```
 
 ### 2. Generate Production Configuration
@@ -112,25 +118,24 @@ KEYCLOAK_DB_PASSWORD=$(openssl rand -base64 32)
 ./kc-setup.sh env/env overlays/prod
 ```
 
-This generates `overlays/prod/secrets.env`, `overlays/prod/realm.json`, and
-`overlays/prod/db.env` from the templates.
+This generates `overlays/prod/secrets.env`, `overlays/prod/realm.json`,
+`overlays/prod/db.env`, and `postgres/postgres.env` from the templates. It also
+creates the `keycloak` namespace if it does not already exist.
 
 ### 3. Deploy PostgreSQL
 
-The default `KEYCLOAK_DB_URL` points to `jdbc:postgresql://postgres:5432/keycloak`,
-which assumes a PostgreSQL service named `postgres` in the `keycloak` namespace.
-Deploy PostgreSQL separately — for example using the [Bitnami Helm chart](https://bitnami.com/stack/postgresql/helm):
+The prod overlay expects a PostgreSQL service named `postgres` on port 5432 in
+the `keycloak` namespace. A ready-to-use PostgreSQL StatefulSet is included in
+`postgres/`. The `kc-setup.sh` script generates `postgres/postgres.env` from the
+same env variables, so credentials stay in sync.
 
 ```bash
-helm install postgres oci://registry-1.docker.io/bitnamicharts/postgresql \
-  --namespace keycloak \
-  --set auth.username=keycloak \
-  --set auth.password=YOUR_SECURE_DB_PASSWORD \
-  --set auth.database=keycloak
+kubectl apply -k postgres
+kubectl rollout status statefulset/postgres -n keycloak
 ```
 
-Ensure the `KEYCLOAK_DB_USERNAME` and `KEYCLOAK_DB_PASSWORD` in `env/env` match
-the PostgreSQL credentials.
+The PostgreSQL credentials come from the `KEYCLOAK_DB_USERNAME`,
+`KEYCLOAK_DB_PASSWORD`, and `KEYCLOAK_DB_NAME` variables in `env/env`.
 
 ### 4. Configure Ingress
 
@@ -235,6 +240,7 @@ re-applying.
 | `KEYCLOAK_DB_URL` | `jdbc:postgresql://postgres:5432/keycloak` | Database JDBC URL (prod only) |
 | `KEYCLOAK_DB_USERNAME` | `keycloak` | Database username (prod only) |
 | `KEYCLOAK_DB_PASSWORD` | `CHANGE_ME_IN_PRODUCTION` | Database password (prod only) |
+| `KEYCLOAK_DB_NAME` | `keycloak` | PostgreSQL database name (prod only) |
 
 See `env/env.template` for a ready-to-copy starting point.
 

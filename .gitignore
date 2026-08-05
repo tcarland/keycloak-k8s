@@ -6,9 +6,11 @@ base/db.env
 overlays/prod/secrets.env
 overlays/prod/realm.json
 overlays/prod/db.env
+postgres/postgres.env
 
 # Local environment files (copies of env/env.template).
 env/env
 *.env
 !base/secrets.template.env
 !base/db.template.env
+!postgres/postgres.template.env
