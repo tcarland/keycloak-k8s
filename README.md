@@ -16,24 +16,18 @@ keycloak-k8s/
 │   ├── realm.template.json          # Template for realm config
 │   ├── secrets.template.env         # Template for admin credentials
 │   ├── db.template.env              # Template for database credentials
-│   ├── realm.json                   # Generated (gitignored)
-│   ├── secrets.env                  # Generated (gitignored)
-│   └── db.env                       # Generated (gitignored)
 ├── postgres/                       # PostgreSQL deployment (applied before keycloak)
-│   ├── kustomization.yaml
-│   ├── statefulset.yaml
-│   ├── service.yaml
-│   ├── postgres.template.env       # Template for postgres credentials
-│   └── postgres.env                # Generated (gitignored)
+│   └── base/
+│       ├── kustomization.yaml
+│       ├── statefulset.yaml
+│       ├── service.yaml
+│       ├── postgres.template.env       # Template for postgres credentials
 ├── overlays/
 │   ├── dev/                         # Development (embedded H2, minimal resources)
 │   │   └── kustomization.yaml
 │   └── prod/                        # Production (PostgreSQL, TLS via ingress)
 │       ├── kustomization.yaml
 │       ├── keycloak-ingress.yaml
-│       ├── realm.json               # Generated (gitignored)
-│       ├── secrets.env              # Generated (gitignored)
-│       └── db.env                   # Generated (gitignored)
 ├── kc-setup.sh                     # Generate secrets, realm config, ensure namespace
 └── README.md
 ```
@@ -41,7 +35,7 @@ keycloak-k8s/
 ## Prerequisites
 
 - `kubectl` configured for a cluster
-- [Kustomize](https://kustomize.io/) (built into `kubectl` via `kubectl apply -k`)
+- [Kustomize](https://kustomize.io/) (also built into `kubectl` via `kubectl apply -k`)
 - `envsubst` (from `gettext` — `apt install gettext` / `brew install gettext`)
 
 ## Quick Start — Development
@@ -233,6 +227,7 @@ re-applying.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+" `KEYCLOAK_REALM_NAME` | `app` | Name of the application realm to configure |
 | `KEYCLOAK_ADMIN_USER` | `admin` | Master realm admin username |
 | `KEYCLOAK_ADMIN_PASSWORD` | `admin` | Master realm admin password |
 | `APP_CLIENT_ID` | `app-client` | OIDC client ID for the imported realm |

@@ -27,6 +27,9 @@
 #   KEYCLOAK_DB_NAME=keycloak
 #
 # Requires: envsubst (gettext)
+PNAME=$(basename "$0")
+AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
+VERSION="v26.08.05"
 
 set -euo pipefail
 
