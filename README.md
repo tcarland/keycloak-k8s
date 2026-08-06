@@ -1,6 +1,9 @@
-# Keycloak Kubernetes Deployment
+Keycloak Kubernetes Deployment
+===============================
 
-Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) 26.7.1 on Kubernetes.
+Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) on Kubernetes.
+
+- keycloak:v26.7.1
 
 ## Directory Structure
 
@@ -284,3 +287,197 @@ kubectl kustomize overlays/dev
 # Render the prod overlay
 kubectl kustomize overlays/prod
 ```
+
+
+## TLS Configuration (Future)
+
+This section documents TLS configuration options for Keycloak within Kubernetes.
+This is not currently implemented but may be required for:
+
+- Security policies requiring encryption for all in-cluster traffic
+- Service mesh integration (Istio, Linkerd) with strict mTLS
+- Compliance requirements (PCI-DSS, HIPAA, etc.)
+- Zero-trust network architectures
+
+### TLS Termination Options
+
+| Approach | Where TLS Terminates | Use Case |
+|----------|---------------------|----------|
+| **Ingress** | At ingress controller | External traffic only; in-cluster is HTTP |
+| **Pod-level** | At Keycloak container | End-to-end encryption; required for strict mTLS |
+| **Service Mesh** | Sidecar proxy | Transparent mTLS; no app changes needed |
+
+#### Certificate Requirements
+
+- TLS certificate and private key
+- Certificate must include SANs for:
+  - Service DNS: `keycloak.scire.svc.cluster.local`
+  - Service name: `keycloak`
+  - Pod DNS (if using headless service)
+
+#### Generate Certificates (cert-manager)
+
+```yaml
+# keycloak-certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-tls
+  namespace: scire
+spec:
+  secretName: keycloak-tls
+  duration: 8760h  # 1 year
+  renewBefore: 720h  # 30 days
+  issuerRef:
+    name: cluster-ca-issuer  # Your CA issuer
+    kind: ClusterIssuer
+  commonName: keycloak.scire.svc.cluster.local
+  dnsNames:
+    - keycloak
+    - keycloak.scire
+    - keycloak.scire.svc
+    - keycloak.scire.svc.cluster.local
+```
+
+#### Deployment Changes
+
+Patch the deployment to enable HTTPS:
+
+```yaml
+# overlays/prod/keycloak-tls-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  template:
+    spec:
+      containers:
+        - name: keycloak
+          args:
+            - start
+            - --import-realm
+            - --https-port=8443
+            - --https-certificate-file=/etc/keycloak/tls/tls.crt
+            - --https-certificate-key-file=/etc/keycloak/tls/tls.key
+            - --hostname-strict=false
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/keycloak/tls
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: https
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: https
+              scheme: HTTPS
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: keycloak-tls
+```
+
+#### Service Changes
+
+```yaml
+# Update service to expose HTTPS
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  ports:
+    - port: 8443
+      targetPort: https
+      protocol: TCP
+      name: https
+```
+
+#### Update Scire Configuration
+
+When Keycloak uses TLS, update Scire to use HTTPS and trust the CA:
+
+```yaml
+# In scire configmap
+SCIRE_OIDC_URL: https://keycloak.scire.svc.cluster.local:8443/realms/scire
+SCIRE_OIDC_TLS_VERIFY: required
+
+# Mount CA certificate
+volumes:
+  - name: keycloak-ca
+    configMap:
+      name: keycloak-ca
+volumeMounts:
+  - name: keycloak-ca
+    mountPath: /etc/ssl/certs/keycloak-ca.crt
+    subPath: ca.crt
+```
+
+Or disable verification (development only):
+```yaml
+SCIRE_OIDC_TLS_VERIFY: none
+```
+
+###  Service Mesh (Istio/Linkerd)
+
+Service meshes provide transparent mTLS without application changes.
+
+#### Istio
+
+```yaml
+# Enable strict mTLS for the namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: scire
+spec:
+  mtls:
+    mode: STRICT
+```
+
+Keycloak and Scire communicate over mTLS via sidecars. No certificate
+management required in the application.
+
+
+### Realm SSL Configuration
+
+Regardless of transport encryption, configure the realm's SSL requirements:
+
+```json
+{
+  "realm": "scire",
+  "sslRequired": "external",  // or "all" for strictest
+  ...
+}
+```
+
+| Value | Behavior |
+|-------|----------|
+| `none` | SSL not required (development only) |
+| `external` | SSL required for external requests; internal OK |
+| `all` | SSL required for all requests |
+
+### Implementation Checklist
+
+When implementing TLS for Keycloak:
+
+- [ ] Choose TLS termination approach based on requirements
+- [ ] Set up certificate management (cert-manager recommended)
+- [ ] Generate certificates with correct SANs
+- [ ] Update deployment with TLS configuration
+- [ ] Update service to expose HTTPS port
+- [ ] Update Scire OIDC configuration
+- [ ] Distribute CA certificate to clients (if using internal CA)
+- [ ] Update realm `sslRequired` setting
+- [ ] Test token acquisition over HTTPS
+- [ ] Update health check endpoints to use HTTPS
+- [ ] Document certificate rotation procedures

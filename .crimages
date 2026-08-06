@@ -1,0 +1,2 @@
+quay.io/keycloak/keycloak:26.7.1
+postgres:17-alpine

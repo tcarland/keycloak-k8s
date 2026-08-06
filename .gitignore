@@ -1,11 +1,10 @@
-# Generated configuration — do not commit.
 # These are produced by kc-setup.sh from the *.template.* files.
 base/realm.json
 overlays/*/realm.json
 
-# Local environment files (copies of env/env.template).
 env/env
 *.env
 !base/secrets.template.env
 !base/db.template.env
 !postgres/base/postgres.template.env
+.backups/
