@@ -459,3 +459,41 @@ When implementing TLS for Keycloak:
 - [ ] Test token acquisition over HTTPS
 - [ ] Update health check endpoints to use HTTPS
 - [ ] Document certificate rotation procedures
+
+
+## Management TLS
+
+If looking to serve metrics from the management port (9000) via HTTPS, 
+the following is an example overlay patch to update the probes.
+```yaml
+
+  # Health probes use HTTPS because the management interface (port 9000)
+  # inherits the main interface's TLS settings by default
+  # (http-management-scheme=inherited), so the existing httpGet probes would
+  # fail against the now-HTTPS management port.
+  - target:
+      kind: Deployment
+      name: keycloak
+    patch: |
+      - op: remove
+        path: /spec/template/spec/containers/0/livenessProbe/httpGet
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe/httpsGet
+        value:
+          path: /health/live
+          port: management
+      - op: remove
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe/httpsGet
+        value:
+          path: /health/ready
+          port: management
+      - op: remove
+        path: /spec/template/spec/containers/0/startupProbe/httpGet
+      - op: add
+        path: /spec/template/spec/containers/0/startupProbe/httpsGet
+        value:
+          path: /health/started
+          port: management
+```

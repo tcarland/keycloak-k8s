@@ -36,6 +36,7 @@ patches:
           - --https-port=8443
           - --https-certificate-file=/etc/keycloak/tls/tls.crt
           - --https-certificate-key-file=/etc/keycloak/tls/tls.key
+          - --http-management-scheme=http
           - --hostname-strict=false
           - --db=postgres
       - op: add
