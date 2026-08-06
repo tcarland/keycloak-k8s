@@ -1,6 +1,9 @@
-# Keycloak Kubernetes Deployment
+Keycloak Kubernetes Deployment
+===============================
 
-Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) 26.7.1 on Kubernetes.
+Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) on Kubernetes.
+
+- keycloak:v26.7.1
 
 ## Directory Structure
 
