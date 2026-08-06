@@ -29,7 +29,7 @@
 # Requires: envsubst (gettext)
 PNAME=$(basename "$0")
 AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
-VERSION="v26.08.05"
+VERSION="v26.08.06"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 set -euo pipefail
