@@ -426,28 +426,6 @@ Or disable verification (development only):
 SCIRE_OIDC_TLS_VERIFY: none
 ```
 
-###  Service Mesh (Istio/Linkerd)
-
-Service meshes provide transparent mTLS without application changes.
-
-#### Istio
-
-```yaml
-# Enable strict mTLS for the namespace
-apiVersion: security.istio.io/v1beta1
-kind: PeerAuthentication
-metadata:
-  name: default
-  namespace: scire
-spec:
-  mtls:
-    mode: STRICT
-```
-
-Keycloak and Scire communicate over mTLS via sidecars. No certificate
-management required in the application.
-
-
 ### Realm SSL Configuration
 
 Regardless of transport encryption, configure the realm's SSL requirements:

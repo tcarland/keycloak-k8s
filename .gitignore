@@ -4,6 +4,11 @@ overlays/*/realm.json
 
 env/env
 *.env
+*.pem
+*.cert
+*.crt
+*.key
+
 !base/secrets.template.env
 !base/db.template.env
 !postgres/base/postgres.template.env

@@ -29,20 +29,29 @@
 # Requires: envsubst (gettext)
 PNAME=$(basename "$0")
 AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
-VERSION="v26.08.06"
+VERSION="v26.08.07"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 set -euo pipefail
 
-# --- Load env file if provided ----------------------------------------------
+# --- Load env file  ---------------------------------------------------------
 
-ENV_FILE="${1:-}"
-if [[ -n "$ENV_FILE" && -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
+ENV_NAME="$1"
+ENV_DIR="env/${ENV_NAME}"
+ENV_FILE="${ENV_DIR}/${ENV_NAME}.env"
+
+if [ -z "$ENV_NAME" ]; then
+    echo "usage: $PNAME <envname>"
 fi
+if [[ ! -f $ENV_FILE ]]; then
+    echo "$PNAME Error, env file not found for '$ENV_NAME'"
+    exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
 
 # --- Defaults (development) -------------------------------------------------
 
@@ -59,27 +68,18 @@ fi
 export KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD APP_CLIENT_ID APP_CLIENT_SECRET
 export KEYCLOAK_DB_URL KEYCLOAK_DB_USERNAME KEYCLOAK_DB_PASSWORD KEYCLOAK_DB_NAME
 
-# --- Output directory -------------------------------------------------------
-
-OUTPUT_DIR="${2:-$PROJECT_DIR/base}"
-OUTPUT_DIR="$(cd "$PROJECT_DIR" && cd "$OUTPUT_DIR" 2>/dev/null && pwd || echo "$PROJECT_DIR/$OUTPUT_DIR")"
-
-if [[ ! -d "$OUTPUT_DIR" ]]; then
-  echo "Error: output directory does not exist: $OUTPUT_DIR" >&2
-  exit 1
-fi
 
 # --- Check for envsubst -----------------------------------------------------
 
 if ! command -v envsubst >/dev/null 2>&1; then
-  echo "Error: envsubst is required but not found." >&2
-  echo "  Install gettext:  apt install gettext  |  brew install gettext" >&2
-  exit 1
+    echo "Error: envsubst is required but not found." >&2
+    echo "  Install gettext:  apt install gettext  |  brew install gettext" >&2
+    exit 1
 fi
 
 # --- Generate files ---------------------------------------------------------
 
-echo "Generating Keycloak db configuration in: $OUTPUT_DIR"
+echo "Generating Keycloak db configuration"
 echo "  Admin user:   $KEYCLOAK_ADMIN_USER"
 echo "  Realm:        app"
 echo "  Client ID:    $APP_CLIENT_ID"
@@ -91,23 +91,35 @@ echo "  -> secrets.env"
 envsubst < "$PROJECT_DIR/base/realm.template.json" > "base/realm.json"
 echo "  -> realm.json"
 
-envsubst < "$PROJECT_DIR/base/db.template.env" > "$OUTPUT_DIR/db.env"
+envsubst < "$PROJECT_DIR/base/db.template.env" > "overlays/${ENV_NAME}/db.env"
 echo "  -> db.env"
 
 # Generate postgres.env (always in postgres/, shared by all overlays)
 envsubst < "$PROJECT_DIR/postgres/base/postgres.template.env" > "$PROJECT_DIR/postgres/base/postgres.env"
 echo "  -> postgres/base/postgres.env"
 
+# --- Copy Certificate files --------------------------------------------------
+
+if [ -f ${ENV_DIR}/tls.crt ]; then
+    if [[ ! -d overlays/${ENV_NAME} ]]; then
+        echo "$PNAME Warning, overlay path not found and is being created"
+        mkdir -p overlays/${ENV_NAME}
+    fi
+
+    cp ${ENV_DIR}/tls.crt overlays/${ENV_NAME}
+    cp ${ENV_DIR}/tls.key overlays/${ENV_NAME}
+fi
+
 # --- Ensure namespace exists -------------------------------------------------
 # The namespace is created here rather than via kustomize manifests so that
 # PostgreSQL can be deployed before Keycloak into the same namespace.
 if command -v kubectl >/dev/null 2>&1; then
-  kubectl create namespace keycloak --dry-run=client -o yaml 2>/dev/null \
-    | kubectl apply -f - >/dev/null 2>&1 \
-    && echo "  -> namespace/keycloak ensured" \
-    || echo "  -> namespace/keycloak: skipped (kubectl error, create manually)"
+    kubectl create namespace keycloak --dry-run=client -o yaml 2>/dev/null | \
+        kubectl apply -f - >/dev/null 2>&1 && \
+        echo "  -> namespace/keycloak ensured" || \
+        echo "  -> namespace/keycloak: skipped (kubectl error, create manually)"
 else
-  echo "  -> namespace/keycloak: skipped (kubectl not found, create manually)"
+    echo "  -> namespace/keycloak: skipped (kubectl not found, create manually)"
 fi
 
 echo ""
