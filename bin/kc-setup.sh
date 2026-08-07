@@ -81,7 +81,7 @@ fi
 
 echo "Generating Keycloak db configuration"
 echo "  Admin user:   $KEYCLOAK_ADMIN_USER"
-echo "  Realm:        app"
+echo "  Realm:        $KEYCLOAK_REALM_NAME"
 echo "  Client ID:    $APP_CLIENT_ID"
 echo "  DB URL:       $KEYCLOAK_DB_URL"
 

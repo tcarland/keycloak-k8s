@@ -20,8 +20,6 @@ generatorOptions:
   disableNameSuffixHash: true
   
 patches:
-  # Switch from dev mode to production mode with PostgreSQL.
-          #- --proxy-headers=forwarded
   - target:
       kind: Deployment
       name: keycloak
@@ -39,6 +37,7 @@ patches:
           - --http-management-scheme=http
           - --hostname-strict=false
           - --db=postgres
+          #- --proxy-headers=forwarded  #  if using ingress with TLS termination.
       - op: add
         path: /spec/template/spec/containers/0/ports/-
         value:
@@ -91,7 +90,6 @@ patches:
         path: /spec/strategy/type
         value: RollingUpdate
 
-  # Larger PVC for production.
   - target:
       kind: PersistentVolumeClaim
       name: keycloak-data
@@ -100,7 +98,7 @@ patches:
         path: /spec/resources/requests/storage
         value: 1Gi
 
-  # Expose HTTPS port (8443) for direct TLS termination at Keycloak.
+  # Expose HTTPS port (8443) for direct TLS.
   - target:
       kind: Service
       name: keycloak
