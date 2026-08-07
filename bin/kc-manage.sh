@@ -25,7 +25,7 @@
 #
 set -e
 
-VERSION="v26.08.06"
+VERSION="v26.08.07"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="$PROJECT_ROOT/.backups"
@@ -81,8 +81,6 @@ add_user() {
     [[ -z "$username" ]] && die "Usage: add-user <username> <password> [role]"
     [[ -z "$password" ]] && die "Usage: add-user <username> <password> [role]"
     
-    info "Adding user: $username with role: $role"
-    
     local config
     config=$(get_realm_config)
     [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
@@ -120,7 +118,7 @@ EOF
     # Update secret
     update_realm_config "$new_config"
     
-    info "User added: $username"
+    info "Added user: $username with role: $role"
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
@@ -129,8 +127,6 @@ remove_user() {
     local username="$1"
     
     [[ -z "$username" ]] && die "Usage: remove-user <username>"
-    
-    info "Removing user: $username"
     
     local config
     config=$(get_realm_config)
@@ -160,8 +156,6 @@ add_client() {
     [[ -z "$client_id" ]] && die "Usage: add-client <client-id> <secret>"
     [[ -z "$secret" ]] && die "Usage: add-client <client-id> <secret>"
     
-    info "Adding client: $client_id"
-    
     local config
     config=$(get_realm_config)
     [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
@@ -188,7 +182,6 @@ add_client() {
 }
 EOF
 )
-    
     # Add client to config
     local new_config
     new_config=$(echo "$config" | jq --argjson client "$client_json" '.clients += [$client]')
@@ -205,8 +198,6 @@ remove_client() {
     local client_id="$1"
     
     [[ -z "$client_id" ]] && die "Usage: remove-client <client-id>"
-    
-    info "Removing client: $client_id"
     
     local config
     config=$(get_realm_config)
@@ -234,8 +225,6 @@ add_role() {
     local description="${2:-}"
 
     [[ -z "$role_name" ]] && die "Usage: add-role <role-name> [description]"
-
-    info "Adding role: $role_name"
 
     local config
     config=$(get_realm_config)
@@ -272,8 +261,6 @@ remove_role() {
     local role_name="$1"
 
     [[ -z "$role_name" ]] && die "Usage: remove-role <role-name>"
-
-    info "Removing role: $role_name"
 
     local config
     config=$(get_realm_config)
@@ -330,15 +317,13 @@ backup() {
     timestamp=$(date +%Y%m%d-%H%M%S)
     local backup_file="$BACKUP_DIR/keycloak-realm-$timestamp.json"
     
-    info "Backing up realm config..."
-    
     local config
     config=$(get_realm_config)
     [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
     
     echo "$config" | jq '.' > "$backup_file"
     
-    info "Backup saved: $backup_file"
+    info "Realm config backup saved: $backup_file"
 }
 
 # Restore realm config from backup
