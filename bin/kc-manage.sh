@@ -10,6 +10,8 @@
 #   remove-user <username>                  Remove a user from the realm
 #   add-client <client-id> <secret>         Add a client to the realm
 #   remove-client <client-id>               Remove a client from the realm
+#   add-user-role <username> <role>         Assign a realm role to a user
+#   remove-user-role <username> <role>      Remove a realm role from a user
 #   add-role <role-name> [description]      Add a realm role
 #   remove-role <role-name>                 Remove a realm role
 #   list-users                              List all users in the realm
@@ -25,7 +27,7 @@
 #
 set -e
 
-VERSION="v26.08.06"
+VERSION="v26.08.07"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="$PROJECT_ROOT/.backups"
@@ -41,10 +43,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+
 info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 die()   { error "$1"; exit 1; }
+
 
 # Check dependencies
 check_deps() {
@@ -55,11 +59,13 @@ check_deps() {
     done
 }
 
+
 # Get current realm config from secret
 get_realm_config() {
     kubectl get secret "$KEYCLOAK_SECRET_NAME" -n "$KEYCLOAK_NAMESPACE" \
         -o jsonpath='{.data.realm\.json}' 2>/dev/null | base64 -d
 }
+
 
 # Update realm config in secret
 update_realm_config() {
@@ -72,6 +78,7 @@ update_realm_config() {
         -p="[{\"op\": \"replace\", \"path\": \"/data/realm.json\", \"value\": \"$encoded\"}]"
 }
 
+
 # Add a user to the realm
 add_user() {
     local username="$1"
@@ -80,8 +87,6 @@ add_user() {
     
     [[ -z "$username" ]] && die "Usage: add-user <username> <password> [role]"
     [[ -z "$password" ]] && die "Usage: add-user <username> <password> [role]"
-    
-    info "Adding user: $username with role: $role"
     
     local config
     config=$(get_realm_config)
@@ -120,17 +125,16 @@ EOF
     # Update secret
     update_realm_config "$new_config"
     
-    info "User added: $username"
+    info "Added user: $username with role: $role"
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
+
 
 # Remove a user from the realm
 remove_user() {
     local username="$1"
     
     [[ -z "$username" ]] && die "Usage: remove-user <username>"
-    
-    info "Removing user: $username"
     
     local config
     config=$(get_realm_config)
@@ -152,6 +156,7 @@ remove_user() {
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+
 # Add a client to the realm
 add_client() {
     local client_id="$1"
@@ -159,8 +164,6 @@ add_client() {
     
     [[ -z "$client_id" ]] && die "Usage: add-client <client-id> <secret>"
     [[ -z "$secret" ]] && die "Usage: add-client <client-id> <secret>"
-    
-    info "Adding client: $client_id"
     
     local config
     config=$(get_realm_config)
@@ -188,7 +191,6 @@ add_client() {
 }
 EOF
 )
-    
     # Add client to config
     local new_config
     new_config=$(echo "$config" | jq --argjson client "$client_json" '.clients += [$client]')
@@ -200,13 +202,12 @@ EOF
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+
 # Remove a client from the realm
 remove_client() {
     local client_id="$1"
     
     [[ -z "$client_id" ]] && die "Usage: remove-client <client-id>"
-    
-    info "Removing client: $client_id"
     
     local config
     config=$(get_realm_config)
@@ -228,14 +229,83 @@ remove_client() {
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+
+add_user_role() {
+    local username="$1"
+    local role="$2"
+
+    [[ -z "$username" ]] && die "Usage: add-user-role <username> <role>"
+    [[ -z "$role" ]] && die "Usage: add-user-role <username> <role>"
+
+    local config
+    config=$(get_realm_config)
+    [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
+
+    # Check if user exists
+    if ! echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
+        die "User not found: $username"
+    fi
+
+    # Check if role exists
+    if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role\")" > /dev/null 2>&1; then
+        die "Role not found: $role"
+    fi
+
+    # Add role to user's realmRoles
+    local new_config
+    new_config=$(echo "$config" | jq --arg u "$username" --arg r "$role" '
+        .users |= map(if .username == $u then .realmRoles += [$r] else . end)
+    ')
+
+    # Update secret
+    update_realm_config "$new_config"
+
+    info "Role '$role' assigned to user '$username'"
+    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+}
+
+
+remove_user_role() {
+    local username="$1"
+    local role="$2"
+
+    [[ -z "$username" ]] && die "Usage: remove-user-role <username> <role>"
+    [[ -z "$role" ]] && die "Usage: remove-user-role <username> <role>"
+
+    local config
+    config=$(get_realm_config)
+    [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
+
+    # Check if user exists
+    if ! echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
+        die "User not found: $username"
+    fi
+
+    # Check if role exists
+    if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role\")" > /dev/null 2>&1; then
+        die "Role not found: $role"
+    fi
+
+    # Remove role from user's realmRoles
+    local new_config
+    new_config=$(echo "$config" | jq --arg u "$username" --arg r "$role" '
+        .users |= map(if .username == $u then .realmRoles |= map(select(. != $r)) else . end)
+    ')
+
+    # Update secret
+    update_realm_config "$new_config"
+
+    info "Role '$role' removed from user '$username'"
+    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+}
+
+
 # Add a realm role
 add_role() {
     local role_name="$1"
     local description="${2:-}"
 
     [[ -z "$role_name" ]] && die "Usage: add-role <role-name> [description]"
-
-    info "Adding role: $role_name"
 
     local config
     config=$(get_realm_config)
@@ -267,13 +337,12 @@ EOF
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+
 # Remove a realm role
 remove_role() {
     local role_name="$1"
 
     [[ -z "$role_name" ]] && die "Usage: remove-role <role-name>"
-
-    info "Removing role: $role_name"
 
     local config
     config=$(get_realm_config)
@@ -298,6 +367,7 @@ remove_role() {
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
 }
 
+
 # List users in the realm
 list_users() {
     info "Users in realm:"
@@ -309,6 +379,7 @@ list_users() {
     
     echo "$config" | jq -r '.users[] | "  \(.username)\t\(.realmRoles | join(", "))"' | column -t -s $'\t'
 }
+
 
 # List clients in the realm
 list_clients() {
@@ -322,6 +393,7 @@ list_clients() {
     echo "$config" | jq -r '.clients[] | "  \(.clientId)\t\(.name // "-")"' | column -t -s $'\t'
 }
 
+
 # Backup current realm config
 backup() {
     mkdir -p "$BACKUP_DIR"
@@ -330,16 +402,15 @@ backup() {
     timestamp=$(date +%Y%m%d-%H%M%S)
     local backup_file="$BACKUP_DIR/keycloak-realm-$timestamp.json"
     
-    info "Backing up realm config..."
-    
     local config
     config=$(get_realm_config)
     [[ -z "$config" ]] && die "Could not retrieve realm config from secret"
     
     echo "$config" | jq '.' > "$backup_file"
     
-    info "Backup saved: $backup_file"
+    info "Realm config backup saved: $backup_file"
 }
+
 
 # Restore realm config from backup
 restore() {
@@ -375,6 +446,7 @@ restore() {
     warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $NAMESPACE"
 }
 
+
 # Show current realm config
 show() {
     local config
@@ -383,6 +455,7 @@ show() {
     
     echo "$config" | jq '.'
 }
+
 
 # Show usage
 usage() {
@@ -393,6 +466,8 @@ usage() {
     echo "  remove-user <username>                 Remove a user"
     echo "  add-client <client-id> <secret>        Add a client"
     echo "  remove-client <client-id>              Remove a client"
+    echo "  add-user-role <username> <role>        Assign a realm role to a user"
+    echo "  remove-user-role <username> <role>     Remove a realm role from a user"
     echo "  add-role <role-name> [description]     Add a realm role"
     echo "  remove-role <role-name>                Remove a realm role"
     echo "  list-users                             List all users"
@@ -415,6 +490,7 @@ usage() {
     echo "  $0 backup"
 }
 
+
 # Main
 main() {
     check_deps
@@ -431,6 +507,12 @@ main() {
             ;;
         remove-client)
             remove_client "$2"
+            ;;
+        add-user-role)
+            add_user_role "$2" "$3"
+            ;;
+        remove-user-role)
+            remove_user_role "$2" "$3"
             ;;
         add-role)
             add_role "$2" "$3"

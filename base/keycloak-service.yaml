@@ -13,7 +13,6 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
-    # Management port — exposes health and metrics endpoints.
     - port: 9000
       targetPort: management
       protocol: TCP

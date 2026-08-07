@@ -7,8 +7,19 @@ resources:
   - ../../base
   #- keycloak-ingress.yaml
 
+secretGenerator:
+  - name: keycloak-db-credentials
+    envs:
+      - db.env
+  - name: keycloak-tls
+    type: kubernetes.io/tls
+    files: 
+      - tls.crt
+      - tls.key
+generatorOptions:
+  disableNameSuffixHash: true
+  
 patches:
-  # Switch from dev mode to production mode with PostgreSQL.
   - target:
       kind: Deployment
       name: keycloak
@@ -20,9 +31,31 @@ patches:
           - --import-realm
           - --http-enabled=true
           - --http-port=8080
+          - --https-port=8443
+          - --https-certificate-file=/etc/keycloak/tls/tls.crt
+          - --https-certificate-key-file=/etc/keycloak/tls/tls.key
+          - --http-management-scheme=http
           - --hostname-strict=false
-          - --proxy-headers=forwarded
           - --db=postgres
+          #- --proxy-headers=forwarded  #  if using ingress with TLS termination.
+      - op: add
+        path: /spec/template/spec/containers/0/ports/-
+        value:
+          containerPort: 8443
+          name: https
+          protocol: TCP
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: keycloak-tls
+          mountPath: /etc/keycloak/tls
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: keycloak-tls
+          secret:
+            secretName: keycloak-tls
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
@@ -57,22 +90,26 @@ patches:
         path: /spec/strategy/type
         value: RollingUpdate
 
-  # Larger PVC for production.
   - target:
       kind: PersistentVolumeClaim
       name: keycloak-data
     patch: |
       - op: replace
         path: /spec/resources/requests/storage
-        value: 10Gi
+        value: 1Gi
 
-secretGenerator:
-  - name: keycloak-db-credentials
-    envs:
-      - db.env
-
-generatorOptions:
-  disableNameSuffixHash: true
+  # Expose HTTPS port (8443) for direct TLS.
+  - target:
+      kind: Service
+      name: keycloak
+    patch: |
+      - op: add
+        path: /spec/ports/-
+        value:
+          port: 8443
+          targetPort: https
+          protocol: TCP
+          name: https
 
 images:
   - name: quay.io/keycloak/keycloak
