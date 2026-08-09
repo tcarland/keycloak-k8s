@@ -37,12 +37,14 @@ set -euo pipefail
 # --- Load env file  ---------------------------------------------------------
 
 ENV_NAME="$1"
-ENV_DIR="env/${ENV_NAME}"
-ENV_FILE="${ENV_DIR}/${ENV_NAME}.env"
 
 if [ -z "$ENV_NAME" ]; then
     echo "usage: $PNAME <envname>"
 fi
+
+ENV_DIR="env/${ENV_NAME}"
+ENV_FILE="${ENV_DIR}/${ENV_NAME}.env"
+
 if [[ ! -f $ENV_FILE ]]; then
     echo "$PNAME Error, env file not found for '$ENV_NAME'"
     exit 1
