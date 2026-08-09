@@ -98,9 +98,9 @@ envsubst < "$PROJECT_DIR/base/realm.template.json" > "base/realm.json"
 echo "  -> realm.json"
 
 if [[ ! -d overlays/${ENV_NAME} ]]; then
-    echo "Overlay directory not found, creating and using example as template"
+    echo "Overlay directory not found, creating and using dev as template"
     mkdir -p overlays/${ENV_NAME}
-    cp overlays/example/kustomization.yaml overlays/${ENV_NAME}/
+    cp overlays/dev/kustomization.yaml overlays/${ENV_NAME}/
 fi
 envsubst < "$PROJECT_DIR/base/db.template.env" > "overlays/${ENV_NAME}/db.env"
 echo "  -> db.env"
