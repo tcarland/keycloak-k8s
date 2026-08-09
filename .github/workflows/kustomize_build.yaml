@@ -25,6 +25,31 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Create dev env file
+        run: |
+          mkdir -p env/dev
+          cat > env/dev/dev.env <<EOF
+          KEYCLOAK_ENV=dev
+          KEYCLOAK_REALM_NAME=${KEYCLOAK_REALM_NAME}
+          KEYCLOAK_NAMESPACE=keycloak
+          KEYCLOAK_SECRET_NAME=keycloak-realm
+          KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
+          KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+          APP_CLIENT_ID=${APP_CLIENT_ID}
+          APP_CLIENT_SECRET=${APP_CLIENT_SECRET}
+          KEYCLOAK_DB_URL=${KEYCLOAK_DB_URL}
+          KEYCLOAK_DB_USERNAME=${KEYCLOAK_DB_USERNAME}
+          KEYCLOAK_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD}
+          KEYCLOAK_DB_NAME=${KEYCLOAK_DB_NAME}
+          EOF
+
+      - name: Create dummy TLS certificates
+        run: |
+          mkdir -p env/dev
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout env/dev/tls.key -out env/dev/tls.crt \
+            -days 1 -subj "/CN=keycloak-dev"
+
       - name: Setup Keycloak
         run: ./bin/kc-setup.sh dev
 
@@ -33,7 +58,7 @@ jobs:
         with:
           kustomize_dir: './postgres'
 
-      - name: Build keycloak
+      - name: Build keycloak (dev overlay)
         uses: tcarland/kustomize-build-action@v2
         with:
-          kustomize_dir: './base'
+          kustomize_dir: './overlays/dev'
