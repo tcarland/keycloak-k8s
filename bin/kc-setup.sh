@@ -29,7 +29,7 @@
 # Requires: envsubst (gettext)
 PNAME=$(basename "$0")
 AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
-VERSION="v26.08.07"
+VERSION="v26.08.09"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 set -euo pipefail
@@ -85,27 +85,28 @@ echo "  Realm:        $KEYCLOAK_REALM_NAME"
 echo "  Client ID:    $APP_CLIENT_ID"
 echo "  DB URL:       $KEYCLOAK_DB_URL"
 
+# Generate postgres.env (always in postgres/, shared by all overlays)
+envsubst < "$PROJECT_DIR/postgres/base/postgres.template.env" > "$PROJECT_DIR/postgres/base/postgres.env"
+echo "  -> postgres/base/postgres.env"
+
 envsubst < "$PROJECT_DIR/base/secrets.template.env" > "base/secrets.env"
 echo "  -> secrets.env"
 
 envsubst < "$PROJECT_DIR/base/realm.template.json" > "base/realm.json"
 echo "  -> realm.json"
 
+if [[ ! -d overlays/${ENV_NAME} ]]; then
+    echo "Overlay directory not found, creating and using example as template"
+    mkdir -p overlays/${ENV_NAME}
+    cp overlays/example/kustomization.yaml overlays/${ENV_NAME}/
+fi
 envsubst < "$PROJECT_DIR/base/db.template.env" > "overlays/${ENV_NAME}/db.env"
 echo "  -> db.env"
 
-# Generate postgres.env (always in postgres/, shared by all overlays)
-envsubst < "$PROJECT_DIR/postgres/base/postgres.template.env" > "$PROJECT_DIR/postgres/base/postgres.env"
-echo "  -> postgres/base/postgres.env"
 
 # --- Copy Certificate files --------------------------------------------------
 
 if [ -f ${ENV_DIR}/tls.crt ]; then
-    if [[ ! -d overlays/${ENV_NAME} ]]; then
-        echo "$PNAME Warning, overlay path not found and is being created"
-        mkdir -p overlays/${ENV_NAME}
-    fi
-
     cp ${ENV_DIR}/tls.crt overlays/${ENV_NAME}
     cp ${ENV_DIR}/tls.key overlays/${ENV_NAME}
 fi
