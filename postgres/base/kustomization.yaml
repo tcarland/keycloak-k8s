@@ -20,5 +20,5 @@ labels:
       app.kubernetes.io/name: postgres
       app.kubernetes.io/component: database
       app.kubernetes.io/part-of: keycloak
-      app.kubernetes.io/version: v26.08.06
+      app.kubernetes.io/version: v26.08.09
     includeSelectors: true

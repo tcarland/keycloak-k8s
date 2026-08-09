@@ -1,6 +1,8 @@
 Keycloak Kubernetes Deployment
 ===============================
 
+Timothy C. Arland <tcarland at gmail dot com>
+
 Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) on Kubernetes.
 
 
