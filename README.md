@@ -36,21 +36,24 @@ keycloak-k8s/
 └── README.md
 ```
 
+
 ## Prerequisites
 
 - `kubectl` configured for a cluster
 - [Kustomize](https://kustomize.io/) (also built into `kubectl` via `kubectl apply -k`)
 - `envsubst` (from `gettext` — `apt install gettext` / `brew install gettext`)
 
+
 ## Quick Start — Development
 
 The dev overlay runs Keycloak in dev mode (`start-dev`) with the embedded H2
 database and reduced resource requests. This is suitable for local clusters
-(kind, minikube, k3d, etc.).
+(kind, minikube, k3d, etc.). Note that we require TLS for keycloak so certs
+will be needed even for dev.
 
 ```bash
 # 1. Generate configuration with development defaults (admin/admin)
-./kc-setup.sh
+./kc-setup.sh dev
 
 # 2. Deploy
 kubectl apply -k overlays/dev
@@ -74,6 +77,7 @@ includes:
 | Client | `app-client` / `app-client-secret` |
 | Roles | `admin`, `user` |
 
+
 ### Get a Token
 
 ```bash
@@ -84,20 +88,22 @@ curl -X POST "http://localhost:8080/realms/app/protocol/openid-connect/token" \
   -d "username=admin&password=admin"
 ```
 
+
 ## Production Deployment
 
 The prod overlay switches Keycloak to production mode (`start`) with PostgreSQL,
-larger resource allocations, and an ingress with TLS.
+larger resource allocations.
+
 
 ### 1. Create a Production Env File
 
 Copy the template and fill in production values:
 
 ```bash
-cp env/env.template env/env
+cp env/env.template env/prod/prod.env
 ```
 
-Edit `env/env` with secure credentials:
+Edit the .env with secure credentials:
 
 ```bash
 KEYCLOAK_ADMIN_USER=admin
@@ -110,15 +116,16 @@ KEYCLOAK_DB_PASSWORD=$(openssl rand -base64 32)
 KEYCLOAK_DB_NAME=keycloak
 ```
 
+
 ### 2. Generate Production Configuration
 
 ```bash
-./kc-setup.sh env/env overlays/prod
+./kc-setup.sh prod
 ```
 
-This generates `overlays/prod/secrets.env`, `overlays/prod/realm.json`,
-`overlays/prod/db.env`, and `postgres/postgres.env` from the templates. It also
+This generates `overlays/prod/secrets.env`, `overlays/prod/db.env`, and `postgres/postgres.env` from the templates. It also
 creates the `keycloak` namespace if it does not already exist.
+
 
 ### 3. Deploy PostgreSQL
 
@@ -135,13 +142,15 @@ kubectl rollout status statefulset/postgres -n keycloak
 The PostgreSQL credentials come from the `KEYCLOAK_DB_USERNAME`,
 `KEYCLOAK_DB_PASSWORD`, and `KEYCLOAK_DB_NAME` variables in `env/env`.
 
+
 ### 4. Configure Ingress
 
-Edit `overlays/prod/keycloak-ingress.yaml`:
+The provided ingress is an example that still needs some work. Currently, TLS
+is required, so exposing the service via type `LoadBalancer` is recommended.
+To-Do: 
+  - Better ingress examples. TLS and TLS Termination
+  - Istio Manifests.
 
-- Set `ingressClassName` to your ingress controller
-- Set the hostname (`keycloak.example.com`)
-- Configure TLS (create a `keycloak-tls` secret or use cert-manager)
 
 ### 5. Deploy
 
@@ -149,11 +158,6 @@ Edit `overlays/prod/keycloak-ingress.yaml`:
 kubectl apply -k overlays/prod
 kubectl rollout status deployment/keycloak -n keycloak
 ```
-
-## Keycloak 26 Notes
-
-This deployment targets Keycloak 26.7.1. The manifests account for several
-changes from older Keycloak versions:
 
 ### Management Port (9000)
 
@@ -180,25 +184,6 @@ In production mode (`start`), Keycloak only enables HTTPS by default. To accept
 HTTP traffic (with TLS termination at the ingress), the prod overlay sets
 `--http-enabled=true` and `--hostname-strict-https=false`.
 
-## Connecting Applications
-
-### In-Cluster (Same Namespace)
-
-```
-http://keycloak:8080/realms/app
-```
-
-### In-Cluster (Different Namespace)
-
-```
-http://keycloak.keycloak.svc.cluster.local:8080/realms/app
-```
-
-### External
-
-```
-https://keycloak.example.com/realms/app
-```
 
 ## Configuration
 
@@ -242,6 +227,7 @@ re-applying.
 | `KEYCLOAK_DB_NAME` | `keycloak` | PostgreSQL database name (prod only) |
 
 See `env/env.template` for a ready-to-copy starting point.
+
 
 ## Troubleshooting
 
@@ -290,15 +276,9 @@ kubectl kustomize overlays/prod
 ```
 
 
-## TLS Configuration (Future)
+## TLS Configuration
 
 This section documents TLS configuration options for Keycloak within Kubernetes.
-This is not currently implemented but may be required for:
-
-- Security policies requiring encryption for all in-cluster traffic
-- Service mesh integration (Istio, Linkerd) with strict mTLS
-- Compliance requirements (PCI-DSS, HIPAA, etc.)
-- Zero-trust network architectures
 
 ### TLS Termination Options
 
@@ -312,6 +292,7 @@ This is not currently implemented but may be required for:
 
 - TLS certificate and private key
 - Certificate must include SANs for:
+  - keycloak domain: For exposing the service, eg. `oidc.domain.net`
   - Service DNS: `keycloak.scire.svc.cluster.local`
   - Service name: `keycloak`
   - Pod DNS (if using headless service)
@@ -340,67 +321,7 @@ spec:
     - keycloak.scire.svc.cluster.local
 ```
 
-#### Deployment Changes
 
-Patch the deployment to enable HTTPS:
-
-```yaml
-# overlays/prod/keycloak-tls-patch.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: keycloak
-spec:
-  template:
-    spec:
-      containers:
-        - name: keycloak
-          args:
-            - start
-            - --import-realm
-            - --https-port=8443
-            - --https-certificate-file=/etc/keycloak/tls/tls.crt
-            - --https-certificate-key-file=/etc/keycloak/tls/tls.key
-            - --hostname-strict=false
-          ports:
-            - containerPort: 8443
-              name: https
-              protocol: TCP
-          volumeMounts:
-            - name: tls-certs
-              mountPath: /etc/keycloak/tls
-              readOnly: true
-          livenessProbe:
-            httpGet:
-              path: /health/live
-              port: https
-              scheme: HTTPS
-          readinessProbe:
-            httpGet:
-              path: /health/ready
-              port: https
-              scheme: HTTPS
-      volumes:
-        - name: tls-certs
-          secret:
-            secretName: keycloak-tls
-```
-
-#### Service Changes
-
-```yaml
-# Update service to expose HTTPS
-apiVersion: v1
-kind: Service
-metadata:
-  name: keycloak
-spec:
-  ports:
-    - port: 8443
-      targetPort: https
-      protocol: TCP
-      name: https
-```
 
 #### Update Scire Configuration
 
@@ -409,7 +330,7 @@ When Keycloak uses TLS, update Scire to use HTTPS and trust the CA:
 ```yaml
 # In scire configmap
 SCIRE_OIDC_URL: https://keycloak.scire.svc.cluster.local:8443/realms/scire
-SCIRE_OIDC_TLS_VERIFY: required
+SCIRE_OIDC_TLS_VERIFY: required # or 'none'
 
 # Mount CA certificate
 volumes:
@@ -422,10 +343,6 @@ volumeMounts:
     subPath: ca.crt
 ```
 
-Or disable verification (development only):
-```yaml
-SCIRE_OIDC_TLS_VERIFY: none
-```
 
 ### Realm SSL Configuration
 
@@ -444,6 +361,7 @@ Regardless of transport encryption, configure the realm's SSL requirements:
 | `none` | SSL not required (development only) |
 | `external` | SSL required for external requests; internal OK |
 | `all` | SSL required for all requests |
+
 
 ### Implementation Checklist
 

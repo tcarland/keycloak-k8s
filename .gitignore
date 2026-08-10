@@ -2,8 +2,8 @@
 base/realm.json
 overlays/*/realm.json
 
-env/env
 *.env
+!env/dev/dev.env
 *.pem
 *.cert
 *.crt

@@ -1,7 +1,7 @@
 {
   "realm": "$KEYCLOAK_REALM_NAME",
   "enabled": true,
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": false,
   "bruteForceProtected": false,
   "accessTokenLifespan": 3600,

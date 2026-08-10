@@ -7,6 +7,18 @@ resources:
   - ../../base
   - keycloak-ingress.yaml
 
+secretGenerator:
+  - name: keycloak-db-credentials
+    envs:
+      - db.env
+  - name: keycloak-tls
+    type: kubernetes.io/tls
+    files: 
+      - tls.crt
+      - tls.key
+generatorOptions:
+  disableNameSuffixHash: true
+
 patches:
   # Switch from dev mode to production mode with PostgreSQL.
   - target:
@@ -65,27 +77,6 @@ patches:
       - op: replace
         path: /spec/resources/requests/storage
         value: 10Gi
-
-# Override credentials for production.
-# IMPORTANT: Generate secrets.env, realm.json, and db.env with production
-# values before deploying. See kc-setup.sh and the README for details.
-secretGenerator:
-  - name: keycloak-admin
-    behavior: replace
-    envs:
-      - secrets.env
-
-  - name: keycloak-realm
-    behavior: replace
-    files:
-      - realm.json
-
-  - name: keycloak-db-credentials
-    envs:
-      - db.env
-
-generatorOptions:
-  disableNameSuffixHash: true
 
 images:
   - name: quay.io/keycloak/keycloak
