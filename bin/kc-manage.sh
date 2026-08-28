@@ -42,6 +42,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+showwarn=1
 
 
 info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -76,6 +77,7 @@ update_realm_config() {
     kubectl patch secret "$KEYCLOAK_SECRET_NAME" -n "$KEYCLOAK_NAMESPACE" \
         --type='json' \
         -p="[{\"op\": \"replace\", \"path\": \"/data/realm.json\", \"value\": \"$encoded\"}]"
+    return $?
 }
 
 
@@ -83,7 +85,7 @@ update_realm_config() {
 add_user() {
     local username="$1"
     local password="$2"
-    local role="${3:-catalog-reader}"
+    local role="${3:-user}"
     
     [[ -z "$username" ]] && die "Usage: add-user <username> <password> [role]"
     [[ -z "$password" ]] && die "Usage: add-user <username> <password> [role]"
@@ -94,7 +96,8 @@ add_user() {
     
     # Check if user already exists
     if echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
-        die "User already exists: $username"
+        error "User already exists: $username"
+        return 1
     fi
     
     # Create user JSON
@@ -126,7 +129,7 @@ EOF
     update_realm_config "$new_config"
     
     info "Added user: $username with role: $role"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -142,7 +145,8 @@ remove_user() {
     
     # Check if user exists
     if ! echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
-        die "User not found: $username"
+        error "User not found: $username"
+        return 1
     fi
     
     # Remove user from config
@@ -153,7 +157,7 @@ remove_user() {
     update_realm_config "$new_config"
     
     info "User removed: $username"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -171,7 +175,8 @@ add_client() {
     
     # Check if client already exists
     if echo "$config" | jq -e ".clients[] | select(.clientId == \"$client_id\")" > /dev/null 2>&1; then
-        die "Client already exists: $client_id"
+        error "Client already exists: $client_id"
+        return 1
     fi
     
     # Create client JSON
@@ -199,7 +204,7 @@ EOF
     update_realm_config "$new_config"
     
     info "Client added: $client_id"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -215,7 +220,8 @@ remove_client() {
     
     # Check if client exists
     if ! echo "$config" | jq -e ".clients[] | select(.clientId == \"$client_id\")" > /dev/null 2>&1; then
-        die "Client not found: $client_id"
+        error "Client not found: $client_id"
+        return 1
     fi
     
     # Remove client from config
@@ -226,7 +232,7 @@ remove_client() {
     update_realm_config "$new_config"
     
     info "Client removed: $client_id"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -243,12 +249,14 @@ add_user_role() {
 
     # Check if user exists
     if ! echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
-        die "User not found: $username"
+        error "User not found: $username"
+        return 1
     fi
 
     # Check if role exists
     if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role\")" > /dev/null 2>&1; then
-        die "Role not found: $role"
+        error "Role not found: $role"
+        return 1
     fi
 
     # Add role to user's realmRoles
@@ -261,7 +269,7 @@ add_user_role() {
     update_realm_config "$new_config"
 
     info "Role '$role' assigned to user '$username'"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -278,12 +286,14 @@ remove_user_role() {
 
     # Check if user exists
     if ! echo "$config" | jq -e ".users[] | select(.username == \"$username\")" > /dev/null 2>&1; then
-        die "User not found: $username"
+        error "User not found: $username"
+        return 1
     fi
 
     # Check if role exists
     if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role\")" > /dev/null 2>&1; then
-        die "Role not found: $role"
+        error "Role not found: $role"
+        return 1
     fi
 
     # Remove role from user's realmRoles
@@ -296,7 +306,7 @@ remove_user_role() {
     update_realm_config "$new_config"
 
     info "Role '$role' removed from user '$username'"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -313,7 +323,8 @@ add_role() {
 
     # Check if role already exists
     if echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role_name\")" > /dev/null 2>&1; then
-        die "Role already exists: $role_name"
+        error "Role already exists: $role_name"
+        return 1
     fi
 
     # Create role JSON
@@ -334,7 +345,7 @@ EOF
     update_realm_config "$new_config"
 
     info "Role added: $role_name"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -350,7 +361,8 @@ remove_role() {
 
     # Check if role exists
     if ! echo "$config" | jq -e ".roles.realm[] | select(.name == \"$role_name\")" > /dev/null 2>&1; then
-        die "Role not found: $role_name"
+        error "Role not found: $role_name"
+        return 1
     fi
 
     # Remove role from config and strip it from any users' realmRoles
@@ -364,7 +376,7 @@ remove_role() {
     update_realm_config "$new_config"
 
     info "Role removed: $role_name (also stripped from users' realmRoles)"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $KEYCLOAK_NAMESPACE"
+    return 0
 }
 
 
@@ -443,7 +455,6 @@ restore() {
     update_realm_config "$config"
     
     info "Realm config restored"
-    warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $NAMESPACE"
 }
 
 
@@ -494,31 +505,43 @@ usage() {
 # Main
 main() {
     check_deps
+    if [ $? -ne 0 ]; then
+        die "Missing required dependencies. Please install kubectl, jq, and base64."
+    fi
+    rt=0
     
     case "${1:-}" in
         add-user)
             add_user "$2" "$3" "$4"
+            rt=$?
             ;;
         remove-user)
             remove_user "$2"
+            rt=$?
             ;;
         add-client)
             add_client "$2" "$3"
+            rt=$?
             ;;
         remove-client)
             remove_client "$2"
+            rt=$?
             ;;
         add-user-role)
             add_user_role "$2" "$3"
+            rt=$?
             ;;
         remove-user-role)
             remove_user_role "$2" "$3"
+            rt=$?
             ;;
         add-role)
             add_role "$2" "$3"
+            rt=$?
             ;;
         remove-role)
             remove_role "$2"
+            rt=$?
             ;;
         list-users)
             list_users
@@ -545,6 +568,12 @@ main() {
             exit 1
             ;;
     esac
+    
+    if [ $rt -gt 0 ]; then
+        warn "Restart Keycloak to apply changes: kubectl rollout restart deployment/keycloak -n $NAMESPACE"
+    fi
+    return $rt
 }
 
 main "$@"
+exit $?
