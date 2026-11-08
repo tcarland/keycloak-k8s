@@ -165,12 +165,12 @@ Keycloak 26 serves health checks and metrics on a dedicated **management port**
 (9000) rather than the main HTTP port (8080). The deployment exposes port 9000
 as `management`, and all probes (`liveness`, `readiness`, `startup`) target it.
 
-| Endpoint | Port | Path |
-|----------|------|------|
-| Liveness | 9000 | `/health/live` |
-| Readiness | 9000 | `/health/ready` |
-| Startup | 9000 | `/health/started` |
-| Metrics | 9000 | `/metrics` |
+| Endpoint  | Port |   Path            |
+|-----------|------|-------------------|
+| Liveness  | 9000 | `/health/live`    |
+| Readiness | 9000 | `/health/ready`   |
+| Startup   | 9000 | `/health/started` |
+| Metrics   | 9000 | `/metrics`        |
 
 ### Proxy Headers
 
@@ -282,11 +282,11 @@ This section documents TLS configuration options for Keycloak within Kubernetes.
 
 ### TLS Termination Options
 
-| Approach | Where TLS Terminates | Use Case |
-|----------|---------------------|----------|
-| **Ingress** | At ingress controller | External traffic only; in-cluster is HTTP |
-| **Pod-level** | At Keycloak container | End-to-end encryption; required for strict mTLS |
-| **Service Mesh** | Sidecar proxy | Transparent mTLS; no app changes needed |
+|     Approach     | Where TLS Terminates  | Use Case |
+|------------------|-----------------------|----------|
+| **Ingress**      | At ingress controller | External traffic only; in-cluster is HTTP |
+| **Pod-level**    | At Keycloak container | End-to-end encryption; required for strict mTLS |
+| **Service Mesh** | Sidecar proxy         | Transparent mTLS; no app changes needed |
 
 #### Certificate Requirements
 
@@ -320,7 +320,6 @@ spec:
     - keycloak.scire.svc
     - keycloak.scire.svc.cluster.local
 ```
-
 
 
 #### Update Scire Configuration
