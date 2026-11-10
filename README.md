@@ -4,12 +4,15 @@ Keycloak Kubernetes Deployment
 Timothy C. Arland <tcarland at gmail dot com>
 
 Kustomize manifests for deploying [Keycloak](https://www.keycloak.org) on Kubernetes.
-
+Uses Postgres as the backing database.
 
 ## Directory Structure
 
 ```
 keycloak-k8s/
+├── bin/
+│   └── kc-setup.sh                 # Generate secrets, realm config, ensure namespace
+│   └── kc-manage.sh                # Manage users, roles, etc
 ├── env/
 │   └── env.template                # Environment config template (copy to env/env)
 ├── base/
@@ -32,7 +35,6 @@ keycloak-k8s/
 │   └── prod/                        # Production (PostgreSQL, TLS via ingress)
 │       ├── kustomization.yaml
 │       ├── keycloak-ingress.yaml
-├── kc-setup.sh                     # Generate secrets, realm config, ensure namespace
 └── README.md
 ```
 
