@@ -110,4 +110,4 @@ patches:
 
 images:
   - name: quay.io/keycloak/keycloak
-    newTag: "26.7.1"
+    newTag: "26.8.2"

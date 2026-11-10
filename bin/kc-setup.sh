@@ -10,10 +10,10 @@
 #   ./kc-setup.sh
 #
 #   # Generate config from env/env.template
-#   ./kc-setup.sh env/env
+#   ./kc-setup.sh envname
 #
 #   # Generate production config from an env file
-#   ./kc-setup.sh env/prod.env overlays/prod
+#   ./kc-setup.sh prod overlays/prod
 #
 # Environment variables (defaults shown):
 #   KEYCLOAK_REALM_NAME=app
@@ -29,7 +29,7 @@
 # Requires: envsubst (gettext)
 PNAME=$(basename "$0")
 AUTHOR="Timothy C. Arland <tcarland at gmail dot com>"
-VERSION="v26.11.08"
+VERSION="v26.11.11"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 
 set -euo pipefail
